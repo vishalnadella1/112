@@ -1,0 +1,95 @@
+from cmu_graphics import *
+
+def onAppStart(app):
+    app.state = 1
+    app.width = 800
+    app.height = 800
+    app.stockPrice = 100
+    app.Tickertext = 'Ticker:'
+    app.strikePos = app.width//2
+    app.radius = 30
+    app.strikePrice = app.stockPrice
+    app.sizeUp1 = 0
+    app.sizeUp2 = 0
+    app.optionType = None
+
+def redrawAll(app):
+    if app.state == 0:
+        drawHomeScreen(app)
+    if app.state == 1:
+        drawStockScreen(app)
+        
+def drawHomeScreen(app):
+    drawRect(0,0, app.width, app.height, fill = 'lightSalmon')
+    drawLabel('112 Option Calculator', app.width/2, 60, bold = True, size = 60, font = 'monospace')
+    drawImage('https://img.freepik.com/premium-vector/stock-market-bar-graph-candlestick-chart-finance-trade-data-vector-illustration_622428-8056.jpg', app.width/2, app.height/2, align = 'center')
+    drawLabel(app.Tickertext, app.width/2, 700, size = 45, font = 'monospace', bold = True)
+    
+def drawStockScreen(app):
+    drawRect(0,0, app.width, app.height, fill = 'black')
+    drawLabel('TSLA', app.width/2, 30, bold = True, size = 60, font = 'monospace', fill = 'white')
+    drawRect(200, 110, 160+app.sizeUp1, 80+app.sizeUp1, fill = 'green', align = 'center')
+    drawLabel('CALL', 200, 110, size = 30+app.sizeUp1, fill = 'white', font = 'monospace', bold= True)
+    drawRect(600, 110, 160+app.sizeUp2, 80+app.sizeUp2, fill = 'red', align = 'center')
+    drawLabel('PUT', 600, 110, size = 30+app.sizeUp2, fill = 'white', font = 'monospace', bold= True)
+
+    for i in range(38):
+        if i == 16:
+            drawRegularPolygon(app.strikePos, 180, app.radius , 3, fill = 'white', rotateAngle = 180)
+            drawLabel(app.strikePrice, app.strikePos, 180, fill = 'black', size = 12, bold = True, font = 'monospace')
+        if i%2 == 0:
+            drawLabel(app.stockPrice//2 + i*app.stockPrice//38, 30+i*740/38, 260, fill = 'white', size = 12, align = 'center')
+        if (i+1)%3 == 0:
+            drawLine(30+i*20, 210, 30+i*20, 220, fill = 'white')
+            drawLine(30+i*20, 270, 30+i*20, 280, fill = 'white')
+        else:
+            drawLine(30+i*20, 210, 30+i*20, 215, fill = 'white')
+            drawLine(30+i*20, 275, 30+i*20, 280, fill = 'white')
+        
+
+
+def onKeyPress(app, key):
+    if app.state == 0:
+        if key == 'enter':
+            app.state = 1
+            app.stockPrice = 100
+        elif key == 'backspace' and len(app.Tickertext)>7:
+            app.Tickertext = app.Tickertext[:-1]
+        elif key.isalpha() and len(key) == 1:
+            app.Tickertext += key.upper()
+def onKeyHold(app, keys):
+    if app.state == 0:
+        if 'backspace' in keys and len(app.Tickertext)>7:
+            app.Tickertext = app.Tickertext[:-1]
+
+def onMouseMove(app, mouseX, mouseY):
+    if app.state == 1:
+        if inTriangle(mouseX, mouseY,  app.strikePos,180,30):
+            app.radius = 40
+        else: app.radius = 30
+        if inRect(mouseX, mouseY, 200, 110, 160, 80):
+            app.sizeUp1 = 10
+        else: app.sizeUp1 = 0
+        if inRect(mouseX, mouseY, 600, 110, 160, 80):
+            app.sizeUp2 = 10
+        else: app.sizeUp2 = 0
+
+def inRect(x1, y1, centerX, centerY, width, height):
+    if x1> centerX-width/2 and x1< centerX + width/2:
+        if y1> centerY - height/2 and y1< centerY + height/2:
+            return True
+    else: return False
+
+def inTriangle(x1,y1, centerX, centerY, radius):
+    return ((centerX-x1)**2 + (centerY - y1)**2)**0.5 <  30
+
+def onMouseDrag(app, mouseX, mouseY):
+    if app.state == 1:
+        if app.radius == 40 and mouseX>40 and mouseX<760:
+            app.strikePos = mouseX
+            app.strikePrice = rounded(app.stockPrice//2+app.stockPrice*(mouseX-30)/740)
+def onMousePress:
+    if app.state == 1:
+        
+    
+runApp()
