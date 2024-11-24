@@ -1,5 +1,5 @@
 from cmu_graphics import *
-
+from datetime import date
 def onAppStart(app):
     app.state = 1
     app.width = 800
@@ -27,24 +27,33 @@ def drawHomeScreen(app):
     
 def drawStockScreen(app):
     drawRect(0,0, app.width, app.height, fill = 'black')
-    drawLabel('TSLA', app.width/2, 30, bold = True, size = 60, font = 'monospace', fill = 'white')
+    drawLabel(f'Option Type:{app.optionType}', app.width//2, 100, fill = 'white', size = 16)
+    drawLabel('TSLA', app.width/2, 40, bold = True, size = 60, font = 'monospace', fill = 'white')
     drawRect(200, 110, 160+app.sizeUp1, 80+app.sizeUp1, fill = 'green', align = 'center')
     drawLabel('CALL', 200, 110, size = 30+app.sizeUp1, fill = 'white', font = 'monospace', bold= True)
     drawRect(600, 110, 160+app.sizeUp2, 80+app.sizeUp2, fill = 'red', align = 'center')
     drawLabel('PUT', 600, 110, size = 30+app.sizeUp2, fill = 'white', font = 'monospace', bold= True)
+    stockSlider(app)
+    expirationDateCalendar(app)
 
+def stockSlider(app):
     for i in range(38):
         if i == 16:
             drawRegularPolygon(app.strikePos, 180, app.radius , 3, fill = 'white', rotateAngle = 180)
             drawLabel(app.strikePrice, app.strikePos, 180, fill = 'black', size = 12, bold = True, font = 'monospace')
         if i%2 == 0:
-            drawLabel(app.stockPrice//2 + i*app.stockPrice//38, 30+i*740/38, 260, fill = 'white', size = 12, align = 'center')
+            drawLabel(app.stockPrice//2 + i*app.stockPrice//38, 30+i*740/38, 250, fill = 'white', size = 12, align = 'center')
         if (i+1)%3 == 0:
             drawLine(30+i*20, 210, 30+i*20, 220, fill = 'white')
             drawLine(30+i*20, 270, 30+i*20, 280, fill = 'white')
         else:
             drawLine(30+i*20, 210, 30+i*20, 215, fill = 'white')
             drawLine(30+i*20, 275, 30+i*20, 280, fill = 'white')
+def expirationDateCalendar(app):    
+    drawLabel('Expiration Date', app.height//2, app.width//2-75, fill = 'white', font = 'monospace', bold = True, size = 24)
+    now = date.today()
+
+    drawLabel(now, 500, 500, fill = 'white')
         
 
 
@@ -88,8 +97,12 @@ def onMouseDrag(app, mouseX, mouseY):
         if app.radius == 40 and mouseX>40 and mouseX<760:
             app.strikePos = mouseX
             app.strikePrice = rounded(app.stockPrice//2+app.stockPrice*(mouseX-30)/740)
-def onMousePress:
+def onMousePress(app, mouseX, mouseY):
     if app.state == 1:
-        
-    
+        if inRect(mouseX, mouseY, 200, 110, 160, 80):
+            app.optionType = 'Call'
+        if inRect(mouseX, mouseY, 600, 110, 160, 80):    
+            app.optionType = 'Put'
+
+
 runApp()
