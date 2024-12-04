@@ -4,15 +4,31 @@ from datetime import datetime
 import math
 from scipy.stats import norm
 import pytz
-import yfinance
+import yfinance as yf
 
+
+def getStockPrice(app):
+    try:
+        stock = yf.Ticker(app.Tickertext[7:])
+        price = stock.history(period="1d")['Close'].iloc[-1]
+        app.noTicker = False
+        app.stockPrice = price
+        app.strikePrice = rounded(price)
+    except:
+        app.Tickertext = app.Tickertext[:7]
+        print('hi')
+        app.noTicker = True
 
 daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 months = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December']
 daysOfTheWeek = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday':3, 'Thursday': 4, 'Friday': 5, 'Saturday' :6}
+dates = ['1mo' , '3mo', '6mo' , '1y']
 
 def onAppStart(app):
+    app.dur = '3mo'
+    app.showGreeks = False
+    app.noTicker = False
     app.state = 0
     app.width = 800
     app.height = 800
@@ -27,6 +43,7 @@ def onAppStart(app):
     app.sizeUp1 = 0
     app.sizeUp2 = 0
     app.sizeUp3 = 0
+    app.sizeUp4 = 0
     app.optionType = None
     app.currentMonth = datetime.now().month-1 
     app.currentYear = datetime.now().year
@@ -46,15 +63,20 @@ def redrawAll(app):
         drawCalendar(app)
     if app.state == 3:
         drawProfitScreen(app)
+    if app.state == 4:
+        drawStockGraph(app)
         
 def drawHomeScreen(app):
     drawRect(0,0, app.width, app.height, fill = 'lightSalmon')
     drawLabel('112 Option Calculator', app.width/2, 60, bold = True, size = 60, font = 'monospace')
     drawImage('https://img.freepik.com/premium-vector/stock-market-bar-graph-candlestick-chart-finance-trade-data-vector-illustration_622428-8056.jpg', app.width/2, app.height/2, align = 'center')
     drawLabel(app.Tickertext, app.width/2, 700, size = 45, font = 'monospace', bold = True)
+    if app.noTicker:
+        drawLabel('No Ticker Try Again', app.width//2, 750, size = 20, font = 'monospace', bold = True, fill = 'red')
     
 def drawStockScreen(app):
     drawRect(0,0, app.width, app.height, fill = 'black')
+    drawLabel('ESC to Go Back', 100, 780, fill = 'white', font ='monosapce', size = 16)
     drawLabel(f'Option Type: {app.optionType}', app.width//2, 100, fill = 'white', size = 16)
     drawLabel(app.Tickertext, app.width/2, 40, bold = True, size = 60, font = 'monospace', fill = 'white')
     drawRect(200, 110, 160+app.sizeUp1, 80+app.sizeUp1, fill = 'green', align = 'center')
@@ -159,11 +181,21 @@ def drawProfitScreen(app):
     for row, price in enumerate(prices):
         y = table_y + (row + 1) * cell_height
         drawRect(table_x, y, cell_width, cell_height, fill='lightgray')
-        drawLabel(f"${price}", table_x + cell_width / 2, y + cell_height / 2, size=12, align='center')
+        drawLabel(f"${rounded(price)}", table_x + cell_width / 2, y + cell_height / 2, size=12, align='center')
         for col in range(len(dates)):
             x = table_x + (col + 1) * cell_width
             drawRect(x, y, cell_width, cell_height, fill='white', border = 'black')
             drawLabel(rounded((findCurrentPrice(app, dates[col], price) - findCurrentPrice(app, datetime.now(), app.stockPrice))*100), x + cell_width / 2, y + cell_height / 2, size=10, align='center')
+    drawLabel('ESC to Go Back', 100, 780 , font ='monosapce', size = 16)
+    greeks = calculateGreeks(app.stockPrice, app.strikePrice, ((datetime(app.selectedDate[0], app.selectedDate[1]+1, app.selectedDate[2], 15, 0)- datetime.now()).days)/365, 0.0431, app.vol, app.optionType)
+    drawLabel('Press G to toggle the Greeks', app.width//2+20, 680, size = 12)
+    drawLabel('Press I to get Stock Information', app.width//2+20, 700, size = 12)
+    if app.showGreeks:
+        greeksText = "".join(
+            [f"{key}:{pythonRound(value, 4)}  " for key, value in greeks.items()]
+                 )
+        drawLabel(greeksText, app.width//2, 740, size = 18, font = 'monospace')
+
 
 
 def generate_dates(now,  future):
@@ -192,12 +224,100 @@ def putOptionPricer(stockPrice, time, strikePrice, interestRate, IV):
     return norm.cdf(-1*d2)*presentValue  - stockPrice * norm.cdf(-1*d1)
 
 
+def calculateGreeks(S, K, T, r, sigma, optionType):
+    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * math.sqrt(T)
+    pdf_d1 = norm.pdf(d1)
+    cdf_d1 = norm.cdf(d1)
+    cdf_d2 = norm.cdf(d2)
+
+    if optionType == "Call":
+        delta = cdf_d1
+        theta = (-S * pdf_d1 * sigma / (2 * math.sqrt(T)) -
+                 r * K * math.exp(-r * T) * cdf_d2)
+        rho = K * T * math.exp(-r * T) * cdf_d2
+    elif optionType == "Put":
+        delta = cdf_d1 - 1
+        theta = (-S * pdf_d1 * sigma / (2 * math.sqrt(T)) +
+                 r * K * math.exp(-r * T) * (1 - cdf_d2))
+        rho = -K * T * math.exp(-r * T) * (1 - cdf_d2)
+    else:
+        raise ValueError("Invalid option type. Use 'call' or 'put'.")
+
+    gamma = pdf_d1 / (S * sigma * math.sqrt(T))
+    vega = S * pdf_d1 * math.sqrt(T)
+
+    return {
+        "Delta": delta,
+        "Gamma": gamma,
+        "Theta": theta / 365,
+        "Vega": vega / 100,  
+        "Rho": rho / 100     
+    }
+
+
+def drawStockGraph(app):
+    data = fetchStockData(app)
+    info = data["info"]
+    drawLabel(f"Stock: {app.Tickertext[7:]}", app.width//2, 50, size=20, bold=True)
+    drawLabel(f"Current Price: ${info['currentPrice']}", app.width//2, 80, size=16)
+    drawLabel(f"Market Cap: {info['marketCap']}", app.width//2, 110, size=16)
+
+    hist = data["history"]
+    dates = hist.index
+    closePrices = hist['Close']
+
+    minPrice, maxPrice = closePrices.min(), closePrices.max()
+    graphHeight = 400
+    graphWidth = 600
+    margin = 100
+
+    points = []
+    for i, price in enumerate(closePrices):
+        x = margin + i * (graphWidth / len(closePrices))
+        y = app.height - 250 - (price - minPrice) * (graphHeight / (maxPrice - minPrice))
+        points.append((x, float(y)))
+
+    drawLine(100, 150, 100, 550)
+    drawLine(100, 550, 700, 550)
+
+    for i in range(len(points) - 1):
+        drawLine(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], lineWidth=2, fill='blue')
+        
+    rangeY = maxPrice - minPrice
+    for i in range(1,9):
+        drawLabel(pythonRound(rangeY/8*i + minPrice, 2), 75, 550 - 50*i)
+    for i in range(4):
+        today = str(date.today())
+        month = int(today[5:7])
+        month -= (i+1)
+        drawLabel(f'{months[month]} {today[8:10]}', 700 - 200*i ,575 )
+    for i in range(4):
+        drawRect(200*i, 700 , 125, 75, fill = 'lightGray', align = 'center')
+        drawLabel(dates[i], 200*i, 700, size = 18, font = 'monospace', fill  ='white')
+
+
+
+def fetchStockData(app):
+    stock = yf.Ticker(app.Tickertext[7:])
+    hist = stock.history(period=app.dur)
+    info = stock.info
+
+    return {
+        "history": hist,
+        "info": {
+            "currentPrice": info.get("currentPrice", "N/A"),
+            "marketCap": info.get("marketCap", "N/A"),
+        }
+    }
+
 
 def onKeyPress(app, key):
     if app.state == 0:
         if key == 'enter':
-            app.state = 1
-            app.stockPrice = 100
+            getStockPrice(app)
+            if app.noTicker == False:
+                app.state= 1
         elif key == 'backspace' and len(app.Tickertext)>7:
             app.Tickertext = app.Tickertext[:-1]
         elif key.isalpha() and len(key) == 1:
@@ -205,6 +325,8 @@ def onKeyPress(app, key):
     if app.state == 1:
         if key == 'enter' and app.optionType != None and app.selectedDate != None:
             app.state = 3
+        if key == 'escape':
+            app.state = 0
     if app.state == 2:
         if key == 'left':
             app.firstDay = (app.firstDay - daysInMonth[app.currentMonth-1])%7
@@ -224,6 +346,13 @@ def onKeyPress(app, key):
         elif key == 'enter':
             if checkFutureDate(app):
                 app.state =1 
+    if app.state == 3:
+        if key == 'escape':
+            app.state = 1
+        if key == 'g':
+            app.showGreeks = not app.showGreeks
+        if key == 'i':
+            app.state = 4
 
 
 
@@ -252,6 +381,11 @@ def onMouseMove(app, mouseX, mouseY):
         if inTriangle(mouseX, mouseY,  670,570,25):
             app.radius3 = 30
         else: app.radius3 = 25
+    if app.state ==3:
+        if inRect(mouseX, mouseY, app.width//2, 750, 200, 75):
+            app.sizeUp4 = 10
+        else:
+            app.sizeUp4 = 0
 def inRect(x1, y1, centerX, centerY, width, height):
     if x1> centerX-width/2 and x1< centerX + width/2:
         if y1> centerY - height/2 and y1< centerY + height/2:
@@ -279,7 +413,10 @@ def onMousePress(app, mouseX, mouseY):
         if inTriangle(mouseX, mouseY,  670,570,25):
             if app.vol > 0:
                 app.vol -=0.01
-
+    if app.state == 4:
+        for i in range(4):
+            if inRect(mouseX, mouseY, 200*i, 700, 125, 75):
+                app.dur = dates[i]
     if app.state == 2:
         x,y = closest(mouseX, mouseY)
         col = (x - 100) // 100
