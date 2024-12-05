@@ -5,6 +5,8 @@ import math
 from scipy.stats import norm
 import pytz
 import yfinance as yf
+import webbrowser
+
 
 
 def getStockPrice(app):
@@ -16,16 +18,18 @@ def getStockPrice(app):
         app.strikePrice = rounded(price)
     except:
         app.Tickertext = app.Tickertext[:7]
-        print('hi')
         app.noTicker = True
 
 daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 months = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December']
 daysOfTheWeek = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday':3, 'Thursday': 4, 'Friday': 5, 'Saturday' :6}
-dates = ['1mo' , '3mo', '6mo' , '1y']
+dateList = ['1mo' , '3mo', '6mo' , '1y']
 
 def onAppStart(app):
+    app.drawCandle = None
+    app.drawPrice = None
+    app.candleStick = False
     app.dur = '3mo'
     app.showGreeks = False
     app.noTicker = False
@@ -51,6 +55,8 @@ def onAppStart(app):
     app.background = 'white'
     app.firstDay = daysOfTheWeek[date(2024, 12, 1).strftime("%A")]
     app.error = False
+    app.scroll = 0
+    app.underline = False
 
 
 
@@ -65,6 +71,8 @@ def redrawAll(app):
         drawProfitScreen(app)
     if app.state == 4:
         drawStockGraph(app)
+    if app.state == 5:
+        drawInfoScreen(app)
         
 def drawHomeScreen(app):
     drawRect(0,0, app.width, app.height, fill = 'lightSalmon')
@@ -73,6 +81,7 @@ def drawHomeScreen(app):
     drawLabel(app.Tickertext, app.width/2, 700, size = 45, font = 'monospace', bold = True)
     if app.noTicker:
         drawLabel('No Ticker Try Again', app.width//2, 750, size = 20, font = 'monospace', bold = True, fill = 'red')
+    drawIcon(app, 760, 40)
     
 def drawStockScreen(app):
     drawRect(0,0, app.width, app.height, fill = 'black')
@@ -87,6 +96,7 @@ def drawStockScreen(app):
     expirationDateCalendar(app)
     volatilitySlider(app)
     enterButton(app)
+    drawIcon(app, 760, 40)
 
 def stockSlider(app):
     drawLabel('Strike Price', app.width//2, 180, fill = 'white', bold=True, font = 'monospace', size = 30)
@@ -102,6 +112,7 @@ def stockSlider(app):
         else:
             drawLine(30+i*20, 230, 30+i*20, 235, fill = 'white')
             drawLine(30+i*20, 295, 30+i*20, 300, fill = 'white')
+
 def expirationDateCalendar(app):    
     drawLabel('Expiration Date', app.height//2, app.width//2-55, fill = 'white', font = 'monospace', bold = True, size = 30)
     drawRect(app.width//2, app.height//2+50,  300+app.sizeUp3, 100+app.sizeUp3, align = 'center', fill = 'lightSeaGreen')
@@ -195,7 +206,7 @@ def drawProfitScreen(app):
             [f"{key}:{pythonRound(value, 4)}  " for key, value in greeks.items()]
                  )
         drawLabel(greeksText, app.width//2, 740, size = 18, font = 'monospace')
-
+    drawIcon(app, 760, 40)
 
 
 def generate_dates(now,  future):
@@ -211,6 +222,7 @@ def findCurrentPrice(app, date, price):
     else:
         currentOptionPrice = putOptionPricer(price, time, app.strikePrice, 0.0431, app.vol)
     return currentOptionPrice
+
 def callOptionPricer(stockPrice, time, strikePrice, interestRate, IV):
     presentValue = strikePrice * math.exp(-1*interestRate*time)
     d1 = (math.log(stockPrice/strikePrice)+((interestRate+(IV**2)/2)*time))/(IV*(time**0.5))
@@ -256,14 +268,20 @@ def calculateGreeks(S, K, T, r, sigma, optionType):
     }
 
 
-def drawStockGraph(app):
-    data = fetchStockData(app)
-    info = data["info"]
-    drawLabel(f"Stock: {app.Tickertext[7:]}", app.width//2, 50, size=20, bold=True)
-    drawLabel(f"Current Price: ${info['currentPrice']}", app.width//2, 80, size=16)
-    drawLabel(f"Market Cap: {info['marketCap']}", app.width//2, 110, size=16)
 
-    hist = data["history"]
+def drawStockGraph(app):
+    drawRect(50, 50, 30, 30, align = 'center', borderWidth = 2, fill = None, border = 'black')
+    drawLabel('Candlestick', 100, 50, size = 12)
+    if app.candleStick == True:
+        drawLine(35, 35, 65, 65, fill='red', lineWidth=3)
+        drawLine(35, 65, 65, 35, fill='red', lineWidth=3)
+    drawLabel(f"Ticker: {app.Tickertext[7:]}", app.width//2, 50, size=20, bold=True)
+    drawLabel(f"Current Price: ${app.stockPrice}", app.width//2, 80, size=16)
+    drawLabel(f"Duration: {app.dur}", app.width//2, 100, size=16)
+
+
+
+    hist = fetchStockData(app)
     dates = hist.index
     closePrices = hist['Close']
 
@@ -272,44 +290,150 @@ def drawStockGraph(app):
     graphWidth = 600
     margin = 100
 
-    points = []
-    for i, price in enumerate(closePrices):
-        x = margin + i * (graphWidth / len(closePrices))
-        y = app.height - 250 - (price - minPrice) * (graphHeight / (maxPrice - minPrice))
-        points.append((x, float(y)))
+    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    priceRange = hist['High'].max() - hist['Low'].min()
+    xScale = (graphWidth) / dateRange
+    yScale = (graphHeight) / priceRange
+
 
     drawLine(100, 150, 100, 550)
     drawLine(100, 550, 700, 550)
 
-    for i in range(len(points) - 1):
-        drawLine(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], lineWidth=2, fill='blue')
+    if app.candleStick == False:
+        for i in range(len(app.points) - 1):
+            drawLine(app.points[i][0], app.points[i][1], app.points[i + 1][0], app.points[i + 1][1], lineWidth=2, fill='blue')
+    else:
+        for i in range(1, len(hist)):
+            x = margin + i * xScale
+            openY = float(app.height - 250 - (hist['Open'].iloc[i] - hist['Low'].min()) * yScale)
+            closeY = float(app.height - 250 - (hist['Close'].iloc[i] - hist['Low'].min()) * yScale)
+            highY = float(app.height - 250 - (hist['High'].iloc[i] - hist['Low'].min()) * yScale)
+            lowY = float(app.height - 250 - (hist['Low'].iloc[i] - hist['Low'].min()) * yScale)
+
+            fillColor = 'green' if hist['Close'].iloc[i] > hist['Open'].iloc[i] else 'red'
+            drawRect(x-2, min(openY, closeY), 4, abs(closeY - openY), fill=fillColor)
+
+            drawLine(x, highY, x, lowY)
+
+
         
     rangeY = maxPrice - minPrice
     for i in range(1,9):
         drawLabel(pythonRound(rangeY/8*i + minPrice, 2), 75, 550 - 50*i)
-    for i in range(4):
-        today = str(date.today())
-        month = int(today[5:7])
-        month -= (i+1)
-        drawLabel(f'{months[month]} {today[8:10]}', 700 - 200*i ,575 )
-    for i in range(4):
-        drawRect(200*i, 700 , 125, 75, fill = 'lightGray', align = 'center')
-        drawLabel(dates[i], 200*i, 700, size = 18, font = 'monospace', fill  ='white')
 
+
+    for i in range(1,5):
+        drawRect(200*i - 100, 700 , 125, 75, fill = 'lightGray', align = 'center')
+        drawLabel(dateList[i-1], 200*i - 100, 700, size = 18, font = 'monospace', fill  ='white')
+
+    drawLabel('ESC to Go Back', 100, 780 , font ='monosapce', size = 16)
+
+    if app.drawPrice != None and app.candleStick == False:
+        price, mouseX, mouseY = app.drawPrice
+        drawLabel(f"Price: ${pythonRound(price,2)}", mouseX + 10, mouseY - 10, size=14, fill='black')
+        drawLine(mouseX, 150, mouseX, 550, dashes = True)
+    
+    if app.drawCandle != None and app.candleStick == True:
+        i, mouseX, mouseY = app.drawCandle
+        drawRect(mouseX + 10, mouseY - 10, 100, 80, fill = 'lavender', border = 'black', borderWidth = 3)
+        drawLabel(f'Open = {pythonRound(hist['Open'].iloc[i],2)}', mouseX+60, mouseY)
+        drawLabel(f'Close = {pythonRound(hist['Close'].iloc[i],2)}', mouseX+60, mouseY+20)
+        drawLabel(f'High = {pythonRound(hist['High'].iloc[i],2)}', mouseX+60, mouseY+40)
+        drawLabel(f'Low = {pythonRound(hist['Low'].iloc[i],2)}', mouseX+60, mouseY+60)
+
+    drawIcon(app, 760, 40)
+
+def generateRectList(app):
+    hist = fetchStockData(app)
+    graphHeight = 400
+    graphWidth = 600
+    margin = 100
+
+    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    priceRange = hist['High'].max() - hist['Low'].min()
+    xScale = (graphWidth) / dateRange
+    yScale = (graphHeight) / priceRange
+
+
+    app.rectList = []
+    for i in range(1, len(hist)):
+        x = margin + i * xScale
+        openY = float(app.height - 250 - (hist['Open'].iloc[i] - hist['Low'].min()) * yScale)
+        closeY = float(app.height - 250 - (hist['Close'].iloc[i] - hist['Low'].min()) * yScale)
+        highY = float(app.height - 250 - (hist['High'].iloc[i] - hist['Low'].min()) * yScale)
+        lowY = float(app.height - 250 - (hist['Low'].iloc[i] - hist['Low'].min()) * yScale)
+        app.rectList.append((x-2, min(openY, closeY), 4, abs(closeY - openY)))
 
 
 def fetchStockData(app):
     stock = yf.Ticker(app.Tickertext[7:])
     hist = stock.history(period=app.dur)
-    info = stock.info
+    return hist
 
-    return {
-        "history": hist,
-        "info": {
-            "currentPrice": info.get("currentPrice", "N/A"),
-            "marketCap": info.get("marketCap", "N/A"),
-        }
-    }
+def findAppPoints(app):
+    stock = yf.Ticker(app.Tickertext[7:])
+    hist = stock.history(period=app.dur)
+    app.closePrices = hist['Close']
+
+    minPrice, maxPrice = app.closePrices.min(), app.closePrices.max()
+    graphHeight = 400
+    graphWidth = 600
+    margin = 100
+
+    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    priceRange = hist['High'].max() - hist['Low'].min()
+    xScale = (graphWidth) / dateRange
+    yScale = (graphHeight) / priceRange
+
+    app.points = []
+    
+    for i, price in enumerate(app.closePrices):
+        x = margin + i * (graphWidth / len(app.closePrices))
+        y = app.height - 250 - (price - minPrice) * (graphHeight / (maxPrice - minPrice))
+        app.points.append((x, float(y)))
+
+
+def drawIcon(app, centerX, centerY):
+    drawCircle(centerX, centerY, 20, fill = 'lightGray')
+    drawRect(centerX, centerY+4, 7, 14, fill = 'cyan', align = 'center')
+    drawCircle(centerX, centerY -10, 4, fill = 'cyan')
+
+
+
+def drawInfoScreen(app):
+    drawRect(0, 0, app.width, app.height, fill = 'sandyBrown')
+    drawLabel('Glossary', app.width//2, 30 - app.scroll, font = 'monospace', size = 45, bold = True)
+    drawLabel('*', 85, 98 - app.scroll, size = 18)
+    drawLabel("Option: A financial tool who's value is based off an underlying asset.", 20,100 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Ticker: A abbreviation used by the Stock Market for a company.", 20,150 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Call: A type of Option that bets the stock goes up." , 20,200 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Put: A type of Option that bets the stock goes down." , 20,250 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Strike Price: The price an option needs to reach by the expiration date" , 20,300 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("to make a profit" , 170,325 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel('*', 150, 298 - app.scroll, size = 18)
+    drawLabel("Expiration Date: The last day an Option can be exercised for profit" , 20,375 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Implied Volatility: The amount of up or down change experts say can" , 20,425 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("reasonably happen in a year" , 230,450 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Table:Shows the amount of profit if the stock goes up to a certain price" , 20,500 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("by a certain date" , 100,525 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 12.17.57 PM.png", 20, 575 - app.scroll, align = 'left-top', width = app.width-40, height = 400)
+    drawLabel("Greeks: Metrics that are useful in trading options" , 20,1025 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Delta: How much the option price goes up if the stock goes up one dollar" , 20,1075 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Gamma: How much the delta goes up if the stock goes up one dollar" , 20,1125 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Theta: How much the option price goes up for every passing day" , 20,1175 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Vega: How much the option price goes up for a change in volatility" , 20,1225 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Rho: How much the option price goes up for a change in interest rates" , 20,1275 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawLabel("Candlesticks: A different way to represent prcies used by many traders" , 20,1325 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
+    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 1.32.46 PM.png", 20, 1375 - app.scroll, align = 'left-top', width = app.width-40, height = 450)
+    drawLabel("* Watch Stock Options Explained by The Plain Bagel on Youtube for more Info" , 20,1875 - app.scroll, font = 'monospace', size = 15, bold = True, align = 'left')
+    if app.underline == True:
+        drawLine(20, 1885 - app.scroll, 690, 1885 - app.scroll)
+    drawLabel('Press ESC to Go Back', 700, 20-app.scroll, size = 12, font = 'monospace')
+    drawLabel('Up and Down to Scroll', 100, 20-app.scroll, size = 12, font = 'monospace')
+
+
+
+
 
 
 def onKeyPress(app, key):
@@ -317,7 +441,9 @@ def onKeyPress(app, key):
         if key == 'enter':
             getStockPrice(app)
             if app.noTicker == False:
+                findAppPoints(app)
                 app.state= 1
+            
         elif key == 'backspace' and len(app.Tickertext)>7:
             app.Tickertext = app.Tickertext[:-1]
         elif key.isalpha() and len(key) == 1:
@@ -353,13 +479,25 @@ def onKeyPress(app, key):
             app.showGreeks = not app.showGreeks
         if key == 'i':
             app.state = 4
-
+    if app.state == 4:
+        if key == 'escape':
+            app.state = 3
+    if app.state == 5 and key == 'escape':
+        app.state = 0
 
 
 def onKeyHold(app, keys):
     if app.state == 0:
         if 'backspace' in keys and len(app.Tickertext)>7:
             app.Tickertext = app.Tickertext[:-1]
+    if app.state ==5:
+        if 'down' in keys:
+            if app.scroll < 1200:
+                app.scroll += 10
+        if 'up' in keys:
+            if app.scroll >0:
+                app.scroll -= 10
+        
 
 def onMouseMove(app, mouseX, mouseY):
     if app.state == 1:
@@ -386,14 +524,46 @@ def onMouseMove(app, mouseX, mouseY):
             app.sizeUp4 = 10
         else:
             app.sizeUp4 = 0
+    if app.state == 4:
+        if app.candleStick == False:
+            for i, point in enumerate(app.points):
+                px, py = point
+                if mouseY > 150 and mouseY < 550 and app.candleStick == False:
+                    if abs(mouseX - px) <  5:
+                        price = app.closePrices[i]
+                        app.drawPrice = (price, mouseX, mouseY)
+                        break
+        if app.candleStick == True:
+            generateRectList(app)
+            if mouseY > 550:
+                app.drawCandle = None
+                pass
+            for i, elem in enumerate(app.rectList):
+                if inRectLeft(mouseX,mouseY, elem[0], elem[1], elem[2], elem[3]):
+                    app.drawCandle = (i+1, mouseX, mouseY)
+    if app.state == 5:
+        if abs(mouseY - (1875 - app.scroll)) < 20:
+            app.underline = True
+        else:
+            app.underline = False
+     
+
+
+def inRectLeft(x1, y1, topLeftx1, topLeft1, width, height):
+    if (x1 - topLeftx1) < width and (y1 - topLeft1) < height and (topLeftx1<x1) and (topLeft1<y1):
+            return True
+    else: return False
+
 def inRect(x1, y1, centerX, centerY, width, height):
     if x1> centerX-width/2 and x1< centerX + width/2:
         if y1> centerY - height/2 and y1< centerY + height/2:
             return True
     else: return False
 
+
 def inTriangle(x1,y1, centerX, centerY, radius):
     return ((centerX-x1)**2 + (centerY - y1)**2)**0.5 <  30
+
 
 def onMouseDrag(app, mouseX, mouseY):
     if app.state == 1:
@@ -414,9 +584,12 @@ def onMousePress(app, mouseX, mouseY):
             if app.vol > 0:
                 app.vol -=0.01
     if app.state == 4:
-        for i in range(4):
-            if inRect(mouseX, mouseY, 200*i, 700, 125, 75):
-                app.dur = dates[i]
+        for i in range(1,5):
+            if inRect(mouseX, mouseY, 200*i - 100, 700, 125, 75):
+                app.dur = dateList[i-1]
+                findAppPoints(app)
+        if inRect(mouseX, mouseY, 50,50, 30, 30):
+            app.candleStick = not app.candleStick
     if app.state == 2:
         x,y = closest(mouseX, mouseY)
         col = (x - 100) // 100
@@ -427,6 +600,12 @@ def onMousePress(app, mouseX, mouseY):
             daysInThisMonth = 29
         if 1 <= day <= daysInThisMonth:
             app.selectedDate = (app.currentYear, app.currentMonth, day)
+    if app.state != 2:
+        if mouseX>740 and mouseX< 780 and mouseY<60 and mouseY > 20:
+            app.state =5 
+    if app.state == 5:
+        if abs(mouseY - (1875 - app.scroll)) < 20:
+            webbrowser.open('https://www.youtube.com/watch?v=VJgHkAqohbU')
 
 
 runApp()
