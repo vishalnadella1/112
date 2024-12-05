@@ -1,97 +1,113 @@
-from cmu_graphics import *
-from datetime import date
-from datetime import datetime
-import math
-from scipy.stats import norm
-import pytz
-import yfinance as yf
-import webbrowser
+#Vishal Nadella // Andrew ID: vishaln
 
+# Modules used in the application
+from cmu_graphics import *  # Graphics library for CMU
+from datetime import date, datetime  # Date and time handling
+import math  # Mathematical functions
+from scipy.stats import norm  # Statistical library for normal distribution
+import yfinance as yf  # Yahoo Finance API for stock data
+import webbrowser  # Web browser interaction
 
-
-def getStockPrice(app):
-    try:
-        stock = yf.Ticker(app.Tickertext[7:])
-        price = stock.history(period="1d")['Close'].iloc[-1]
-        app.noTicker = False
-        app.stockPrice = price
-        app.strikePrice = rounded(price)
-    except:
-        app.Tickertext = app.Tickertext[:7]
-        app.noTicker = True
-
-daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+# Constants for the application
+daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]  # Days in each month
 months = ['January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December']
-daysOfTheWeek = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday':3, 'Thursday': 4, 'Friday': 5, 'Saturday' :6}
-dateList = ['1mo' , '3mo', '6mo' , '1y']
+          'July', 'August', 'September', 'October', 'November', 'December']
+daysOfTheWeek = {'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
+                 'Thursday': 4, 'Friday': 5, 'Saturday': 6}
+dateList = ['1mo', '3mo', '6mo', '1y']  # Duration options for stock history
 
+# App initialization function
 def onAppStart(app):
+    # State variables to track user interaction and app functionality
     app.drawCandle = None
     app.drawPrice = None
     app.candleStick = False
-    app.dur = '3mo'
+    app.dur = '3mo'  # Default duration for stock graph
     app.showGreeks = False
     app.noTicker = False
-    app.state = 0
+    app.state = 0  # Tracks the current screen
     app.width = 800
     app.height = 800
-    app.stockPrice = 100
-    app.Tickertext = 'Ticker:'
-    app.strikePos = app.width//2
+    app.stockPrice = 100  # Default stock price
+    app.Tickertext = 'Ticker:'  # User Input Area
+    app.strikePos = app.width // 2
     app.radius = 25
     app.radius2 = 25
     app.radius3 = 25
     app.strikePrice = app.stockPrice
-    app.vol = 0.5
+    app.vol = 0.5  # Default implied volatility
     app.sizeUp1 = 0
     app.sizeUp2 = 0
     app.sizeUp3 = 0
     app.sizeUp4 = 0
     app.optionType = None
-    app.currentMonth = datetime.now().month-1 
+    app.currentMonth = datetime.now().month - 1
     app.currentYear = datetime.now().year
     app.selectedDate = None
     app.background = 'white'
     app.firstDay = daysOfTheWeek[date(2024, 12, 1).strftime("%A")]
-    app.error = False
     app.scroll = 0
     app.underline = False
 
-
-
+# Function to redraw the screen based on the current state
 def redrawAll(app):
     if app.state == 0:
-        drawHomeScreen(app)
+        drawHomeScreen(app)  # Home screen
     if app.state == 1:
-        drawStockScreen(app)
+        drawStockScreen(app)  # Stock options screen
     if app.state == 2:
-        drawCalendar(app)
+        drawCalendar(app)  # Calendar for selecting expiration date
     if app.state == 3:
-        drawProfitScreen(app)
+        drawProfitScreen(app)  # Profit/loss calculation screen
     if app.state == 4:
-        drawStockGraph(app)
+        drawStockGraph(app)  # Stock graph screen
     if app.state == 5:
-        drawInfoScreen(app)
-        
+        drawInfoScreen(app)  # Glossary screen
+
+# Home screen layout
 def drawHomeScreen(app):
-    drawRect(0,0, app.width, app.height, fill = 'lightSalmon')
-    drawLabel('112 Option Calculator', app.width/2, 60, bold = True, size = 60, font = 'monospace')
-    drawImage('https://img.freepik.com/premium-vector/stock-market-bar-graph-candlestick-chart-finance-trade-data-vector-illustration_622428-8056.jpg', app.width/2, app.height/2, align = 'center')
-    drawLabel(app.Tickertext, app.width/2, 700, size = 45, font = 'monospace', bold = True)
+    drawRect(0, 0, app.width, app.height, fill='lightSalmon')  # Background color
+    drawLabel('112 Option Calculator', app.width / 2, 60, bold=True, size=60, font='monospace')
+    drawImage('https://img.freepik.com/premium-vector/stock-market-bar-graph-candlestick-chart-finance-trade-data-vector-illustration_622428-8056.jpg',
+              app.width / 2, app.height / 2, align='center')  # Illustration
+    drawLabel(app.Tickertext, app.width / 2, 700, size=45, font='monospace', bold=True)
     if app.noTicker:
-        drawLabel('No Ticker Try Again', app.width//2, 750, size = 20, font = 'monospace', bold = True, fill = 'red')
-    drawIcon(app, 760, 40)
-    
+        drawLabel('No Ticker Try Again', app.width // 2, 750, size=20, font='monospace', bold=True, fill='red')
+    drawIcon(app, 760, 40)  # Small icon in the corner
+
+# Fetch stock price based on the ticker symbol
+def getStockPrice(app):
+    try:
+        stock = yf.Ticker(app.Tickertext[7:])  # Remove "Ticker:" prefix
+        price = stock.history(period="1d")['Close'].iloc[-1]  # Get latest closing price
+        app.noTicker = False
+        app.stockPrice = price
+        app.strikePrice = rounded(price)  # Adjust strike price
+    except:
+        app.Tickertext = app.Tickertext[:7]  # Reset ticker input on error
+        app.noTicker = True
+
 def drawStockScreen(app):
-    drawRect(0,0, app.width, app.height, fill = 'black')
-    drawLabel('ESC to Go Back', 100, 780, fill = 'white', font ='monosapce', size = 16)
-    drawLabel(f'Option Type: {app.optionType}', app.width//2, 100, fill = 'white', size = 16)
-    drawLabel(app.Tickertext, app.width/2, 40, bold = True, size = 60, font = 'monospace', fill = 'white')
-    drawRect(200, 110, 160+app.sizeUp1, 80+app.sizeUp1, fill = 'green', align = 'center')
-    drawLabel('CALL', 200, 110, size = 30+app.sizeUp1, fill = 'white', font = 'monospace', bold= True)
-    drawRect(600, 110, 160+app.sizeUp2, 80+app.sizeUp2, fill = 'red', align = 'center')
-    drawLabel('PUT', 600, 110, size = 30+app.sizeUp2, fill = 'white', font = 'monospace', bold= True)
+    """Draw the main stock option selection screen."""
+    # Draw background
+    drawRect(0, 0, app.width, app.height, fill='black')
+    
+    # Draw escape instruction label
+    drawLabel('ESC to Go Back', 100, 780, fill='white', font='monospace', size=16)
+    
+    # Draw option type and ticker symbol
+    drawLabel(f'Option Type: {app.optionType}', app.width // 2, 100, fill='white', size=16)
+    drawLabel(app.Tickertext, app.width / 2, 40, bold=True, size=60, font='monospace', fill='white')
+    
+    # Draw CALL button
+    drawRect(200, 110, 160 + app.sizeUp1, 80 + app.sizeUp1, fill='green', align='center')
+    drawLabel('CALL', 200, 110, size=30 + app.sizeUp1, fill='white', font='monospace', bold=True)
+    
+    # Draw PUT button
+    drawRect(600, 110, 160 + app.sizeUp2, 80 + app.sizeUp2, fill='red', align='center')
+    drawLabel('PUT', 600, 110, size=30 + app.sizeUp2, fill='white', font='monospace', bold=True)
+    
+    # Draw additional UI elements
     stockSlider(app)
     expirationDateCalendar(app)
     volatilitySlider(app)
@@ -99,150 +115,216 @@ def drawStockScreen(app):
     drawIcon(app, 760, 40)
 
 def stockSlider(app):
-    drawLabel('Strike Price', app.width//2, 180, fill = 'white', bold=True, font = 'monospace', size = 30)
+    """Draw a slider to select the stock's strike price."""
+    # Label for the slider
+    drawLabel('Strike Price', app.width // 2, 180, fill='white', bold=True, font='monospace', size=30)
+    
+    # Draw the slider's scale and the triangle indicator
     for i in range(38):
         if i == 16:
-            drawRegularPolygon(app.strikePos, 220, app.radius , 3, fill = 'white', rotateAngle = 180)
-            drawLabel(app.strikePrice, app.strikePos, 220, fill = 'black', size = 12, bold = True, font = 'monospace')
-        if i%2 == 0:
-            drawLabel(app.stockPrice//2 + i*app.stockPrice//38, 30+i*740/38, 270, fill = 'white', size = 12, align = 'center')
-        if (i+1)%3 == 0:
-            drawLine(30+i*20, 230, 30+i*20, 240, fill = 'white')
-            drawLine(30+i*20, 290, 30+i*20, 300, fill = 'white')
+            # Draw the triangle indicator for the selected strike price
+            drawRegularPolygon(app.strikePos, 220, app.radius, 3, fill='white', rotateAngle=180)
+            drawLabel(app.strikePrice, app.strikePos, 220, fill='black', size=12, bold=True, font='monospace')
+        
+        if i % 2 == 0:
+            # Draw labels for key price points
+            drawLabel(app.stockPrice // 2 + i * app.stockPrice // 38, 30 + i * 740 / 38, 270, fill='white', size=12, align='center')
+        
+        if (i + 1) % 3 == 0:
+            # Draw longer tick marks for major divisions
+            drawLine(30 + i * 20, 230, 30 + i * 20, 240, fill='white')
+            drawLine(30 + i * 20, 290, 30 + i * 20, 300, fill='white')
         else:
-            drawLine(30+i*20, 230, 30+i*20, 235, fill = 'white')
-            drawLine(30+i*20, 295, 30+i*20, 300, fill = 'white')
+            # Draw shorter tick marks for minor divisions
+            drawLine(30 + i * 20, 230, 30 + i * 20, 235, fill='white')
+            drawLine(30 + i * 20, 295, 30 + i * 20, 300, fill='white')
 
-def expirationDateCalendar(app):    
-    drawLabel('Expiration Date', app.height//2, app.width//2-55, fill = 'white', font = 'monospace', bold = True, size = 30)
-    drawRect(app.width//2, app.height//2+50,  300+app.sizeUp3, 100+app.sizeUp3, align = 'center', fill = 'lightSeaGreen')
+def expirationDateCalendar(app):
+    """Draw the expiration date calendar selection."""
+    # Label for expiration date
+    drawLabel('Expiration Date', app.height // 2, app.width // 2 - 55, fill='white', font='monospace', bold=True, size=30)
+    
+    # Draw the expiration date selection box
+    drawRect(app.width // 2, app.height // 2 + 50, 300 + app.sizeUp3, 100 + app.sizeUp3, align='center', fill='lightSeaGreen')
+    
     if app.selectedDate == None:
-        drawLabel('Select Date', app.width//2, app.height//2+50, size = 35, fill = 'white', font = 'monospace')
+        # If no date is selected, display the placeholder text
+        drawLabel('Select Date', app.width // 2, app.height // 2 + 50, size=35, fill='white', font='monospace')
     else:
-         drawLabel(f'{app.selectedDate[2]} {months[app.selectedDate[1]]} {app.selectedDate[0]}', app.width//2, app.height//2+50, size = 30, fill = 'white', font = 'monospace')
+        # Display the selected date in the format "Day Month Year"
+        drawLabel(f'{app.selectedDate[2]} {months[app.selectedDate[1]]} {app.selectedDate[0]}', app.width // 2, app.height // 2 + 50, size=30, fill='white', font='monospace')
 
+#Draw Volatility Changer
+def volatilitySlider(app):
+    drawLabel(f'Implied Volatility:{rounded(app.vol*100)}%', app.width//2, 550, fill = 'white', bold=True, font = 'monospace', size = 30)
+    drawRegularPolygon(670, 530, app.radius2 , 3, fill = 'white') #Up Button
+    drawRegularPolygon(670, 570, app.radius3 , 3, fill = 'white', rotateAngle = 180) # Down Button
 
 def drawCalendar(app):
+    """Draw the calendar for the selected month and year."""
+    
+    # Display the current month and year at the top
     drawLabel(f"{months[app.currentMonth]} {app.currentYear}", app.width / 2, 50, size=24, bold=True, align='center')
     
+    # Days of the week header
     days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     for i in range(len(days)):
         drawLabel(days[i], 100 + i * 100, 100, size=16, bold=True, align='center')
     
+    # Calculate the number of days in the current month
     daysInThisMonth = daysInMonth[app.currentMonth]
+    
+    # Handle February in a leap year
     if app.currentMonth == 1 and isLeapYear(app.currentYear): 
         daysInThisMonth = 29
-    
 
+    # Starting position for drawing the calendar grid
     row, col = 0, app.firstDay
+    
+    # Draw the days on the calendar grid
     for day in range(1, daysInThisMonth + 1):
-        x = 100 + col * 100
-        y = 150 + row * 100
+        x = 100 + col * 100  # X position based on the column
+        y = 150 + row * 100  # Y position based on the row
+        
+        # Highlight the selected date
         if app.selectedDate == (app.currentYear, app.currentMonth, day):
-            drawRect(x , y , 40, 40, fill='lightblue', border='blue', borderWidth=2, align = 'center')
+            drawRect(x, y, 40, 40, fill='lightblue', border='blue', borderWidth=2, align='center')
+        
+        # Draw the day number
         drawLabel(day, x, y, size=16)
+        
+        # Update column and row for next day
         col += 1
         if col > 6: 
             col = 0
             row += 1
     
-    drawLabel('Right and Left Arrows to Change Months', app.width//2, app.height-180, size = 20 )
-    drawLabel('Click a Date to Select', app.width//2, app.height-150, size=20)
-    drawLabel('Press Enter to Confirm Date', app.width//2, app.height-120, size=20)
+    # Instructions for navigation and selection
+    drawLabel('Right and Left Arrows to Change Months', app.width // 2, app.height - 180, size=20)
+    drawLabel('Click a Date to Select', app.width // 2, app.height - 150, size=20)
+    drawLabel('Press Enter to Confirm Date', app.width // 2, app.height - 120, size=20)
 
+    # Show an error if a past date is selected
     if not checkFutureDate(app) and app.selectedDate != None:
-        drawLabel('Date Selected is in the Past', app.width//2, app.height-50, bold = True, size = 40, fill = 'red')
+        drawLabel('Date Selected is in the Past', app.width // 2, app.height - 50, bold=True, size=40, fill='red')
 
 def isLeapYear(year):
+    """Check if a year is a leap year."""
     return year % 4 == 0
 
-def closest(x,y):
-    return rounded(x / 100) * 100 ,  rounded((y+50)/ 100) * 100
+def closest(x, y):
+    """Calculate the closest grid coordinates."""
+    return rounded(x / 100) * 100, rounded((y + 50) / 100) * 100
 
 def checkFutureDate(app):
+    """Check if the selected date is in the future."""
     if app.selectedDate != None:
-        d = datetime(app.selectedDate[0], app.selectedDate[1]+1, app.selectedDate[2],3 , 0)
+        d = datetime(app.selectedDate[0], app.selectedDate[1] + 1, app.selectedDate[2], 3, 0)
         today = datetime.now()
         return d > today
 
-
-def volatilitySlider(app):
-    drawLabel(f'Implied Volatility:{rounded(app.vol*100)}%', app.width//2, 550, fill = 'white', bold=True, font = 'monospace', size = 30)
-    drawRegularPolygon(670, 530, app.radius2 , 3, fill = 'white')
-    drawRegularPolygon(670, 570, app.radius3 , 3, fill = 'white', rotateAngle = 180)
-
 def enterButton(app):
+    """Display a button label when ready to confirm the selected date."""
     if app.optionType != None:
         if app.selectedDate != None:
-            drawLabel('Press Enter',app.width/2, 700, bold = True, size = 40, font = 'monospace', fill = 'yellow')
-
+            drawLabel('Press Enter', app.width / 2, 700, bold=True, size=40, font='monospace', fill='yellow')
 
 def drawProfitScreen(app):
-    cell_width = 80
-    cell_height = 50
-    table_x = 50
-    table_y = 50
-    prices = [app.stockPrice + app.stockPrice//2 - app.stockPrice//10*i for i in range(11)]
-    dates = generate_dates(datetime.now(),  datetime(app.selectedDate[0], app.selectedDate[1]+1, app.selectedDate[2], 15, 0))
+    """Draw the profit/loss table and the Greeks information."""
+    
+    # Set up dimensions for table cells and initial position
+    cellWidth = 80
+    cellHeight = 50
+    tableX = 50
+    tableY = 50
+    
+    # Calculate price levels for the table
+    prices = [app.stockPrice + app.stockPrice // 2 - app.stockPrice // 10 * i for i in range(11)]
+    
+    # Generate the dates for the column headers
+    dates = generateDates(datetime.now(), datetime(app.selectedDate[0], app.selectedDate[1] + 1, app.selectedDate[2], 15, 0))
+    
+    # Draw date labels as table headers
     for col, date in enumerate(dates):
-        x = table_x + (col + 1) * cell_width
-        drawRect(x, table_y, cell_width, cell_height, fill='lightgray')
-        drawLabel(date.strftime('%Y-%m-%d') , x + cell_width / 2, table_y + cell_height / 2, size=10, align='center')
+        x = tableX + (col + 1) * cellWidth
+        drawRect(x, tableY, cellWidth, cellHeight, fill='lightgray')
+        drawLabel(date.strftime('%Y-%m-%d'), x + cellWidth / 2, tableY + cellHeight / 2, size=10, align='center')
 
+    # Draw price labels as row headers and the profit/loss values for each cell
     for row, price in enumerate(prices):
-        y = table_y + (row + 1) * cell_height
-        drawRect(table_x, y, cell_width, cell_height, fill='lightgray')
-        drawLabel(f"${rounded(price)}", table_x + cell_width / 2, y + cell_height / 2, size=12, align='center')
+        y = tableY + (row + 1) * cellHeight
+        drawRect(tableX, y, cellWidth, cellHeight, fill='lightgray')
+        drawLabel(f"${rounded(price)}", tableX + cellWidth / 2, y + cellHeight / 2, size=12, align='center')
+        
+        # Draw the profit/loss for each price/date combination
         for col in range(len(dates)):
-            x = table_x + (col + 1) * cell_width
-            drawRect(x, y, cell_width, cell_height, fill='white', border = 'black')
-            drawLabel(rounded((findCurrentPrice(app, dates[col], price) - findCurrentPrice(app, datetime.now(), app.stockPrice))*100), x + cell_width / 2, y + cell_height / 2, size=10, align='center')
-    drawLabel('ESC to Go Back', 100, 780 , font ='monosapce', size = 16)
-    greeks = calculateGreeks(app.stockPrice, app.strikePrice, ((datetime(app.selectedDate[0], app.selectedDate[1]+1, app.selectedDate[2], 15, 0)- datetime.now()).days)/365, 0.0431, app.vol, app.optionType)
-    drawLabel('Press G to toggle the Greeks', app.width//2+20, 680, size = 12)
-    drawLabel('Press I to get Stock Information', app.width//2+20, 700, size = 12)
+            x = tableX + (col + 1) * cellWidth
+            drawRect(x, y, cellWidth, cellHeight, fill='white', border='black')
+            # Calculate the profit/loss for the specific date and price
+            profitLoss = rounded((findCurrentPrice(app, dates[col], price) - findCurrentPrice(app, datetime.now(), app.stockPrice)) * 100)
+            drawLabel(profitLoss, x + cellWidth / 2, y + cellHeight / 2, size=10, align='center')
+    
+    # Instructions for navigation
+    drawLabel('ESC to Go Back', 100, 780, font='monosapce', size=16)
+    
+    # Calculate and display the Greeks
+    greeks = calculateGreeks(app.stockPrice, app.strikePrice, ((datetime(app.selectedDate[0], app.selectedDate[1] + 1, app.selectedDate[2], 15, 0) - datetime.now()).days) / 365, 0.0431, app.vol, app.optionType)
+    drawLabel('Press G to toggle the Greeks', app.width // 2 + 20, 680, size=12)
+    drawLabel('Press I to get Stock Information', app.width // 2 + 20, 700, size=12)
+    
+    # If Greeks should be shown, display them
     if app.showGreeks:
-        greeksText = "".join(
-            [f"{key}:{pythonRound(value, 4)}  " for key, value in greeks.items()]
-                 )
-        drawLabel(greeksText, app.width//2, 740, size = 18, font = 'monospace')
+        greeksText = "".join([f"{key}:{pythonRound(value, 4)}  " for key, value in greeks.items()])
+        drawLabel(greeksText, app.width // 2, 740, size=18, font='monospace')
+    
+    # Draw the icon in the top right corner
     drawIcon(app, 760, 40)
 
 
-def generate_dates(now,  future):
-    delta = (future - now) / (7)
-    return [(now + i * delta)for i in range(7)]
+def generateDates(now, future):
+    """Generate a list of dates between now and the future date."""
+    delta = (future - now) / 7  # Divide the time difference by 7 to get weekly intervals
+    return [(now + i * delta) for i in range(7)]  # Generate 7 dates for the 7 days in a week
 
 def findCurrentPrice(app, date, price):
-    future = datetime(app.selectedDate[0], app.selectedDate[1]+1, app.selectedDate[2], 15, 0)
+    """Find the current option price based on the given date and stock price."""
+    future = datetime(app.selectedDate[0], app.selectedDate[1] + 1, app.selectedDate[2], 15, 0)
     time = future - date
-    time = time.days/365
+    time = time.days / 365  # Convert time difference to years
     if app.optionType == 'Call':
+        # Calculate the option price for a Call option
         currentOptionPrice = callOptionPricer(price, time, app.strikePrice, 0.0431, app.vol)
     else:
+        # Calculate the option price for a Put option
         currentOptionPrice = putOptionPricer(price, time, app.strikePrice, 0.0431, app.vol)
     return currentOptionPrice
 
 def callOptionPricer(stockPrice, time, strikePrice, interestRate, IV):
-    presentValue = strikePrice * math.exp(-1*interestRate*time)
-    d1 = (math.log(stockPrice/strikePrice)+((interestRate+(IV**2)/2)*time))/(IV*(time**0.5))
-    d2 = d1 - (IV*(time**0.5))
-    return norm.cdf(d1)*stockPrice - norm.cdf(d2)*presentValue
+    """Calculate the Call option price using the Black-Scholes model."""
+    presentValue = strikePrice * math.exp(-1 * interestRate * time)  # Discount the strike price
+    d1 = (math.log(stockPrice / strikePrice) + ((interestRate + (IV ** 2) / 2) * time)) / (IV * (time ** 0.5))  # d1 calculation
+    d2 = d1 - (IV * (time ** 0.5))  # d2 calculation
+    # Calculate Call option price using the Black-Scholes formula
+    return norm.cdf(d1) * stockPrice - norm.cdf(d2) * presentValue
 
 def putOptionPricer(stockPrice, time, strikePrice, interestRate, IV):
-    presentValue = strikePrice * math.exp(-1*interestRate*time)
-    d1 = (math.log(stockPrice/strikePrice)+((interestRate+(IV**2)/2)*time))/(IV*(time**0.5))
-    d2 = d1 - (IV*(time**0.5))
-    return norm.cdf(-1*d2)*presentValue  - stockPrice * norm.cdf(-1*d1)
-
+    """Calculate the Put option price using the Black-Scholes model."""
+    presentValue = strikePrice * math.exp(-1 * interestRate * time)  # Discount the strike price
+    d1 = (math.log(stockPrice / strikePrice) + ((interestRate + (IV ** 2) / 2) * time)) / (IV * (time ** 0.5))  # d1 calculation
+    d2 = d1 - (IV * (time ** 0.5))  # d2 calculation
+    # Calculate Put option price using the Black-Scholes formula
+    return norm.cdf(-1 * d2) * presentValue - stockPrice * norm.cdf(-1 * d1)
 
 def calculateGreeks(S, K, T, r, sigma, optionType):
+    """Calculate the Greeks (Delta, Gamma, Theta, Vega, Rho) for a given option."""
+    # Calculate d1 and d2 for Black-Scholes model
     d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
-    pdf_d1 = norm.pdf(d1)
-    cdf_d1 = norm.cdf(d1)
-    cdf_d2 = norm.cdf(d2)
+    pdf_d1 = norm.pdf(d1)  # Probability density function for d1
+    cdf_d1 = norm.cdf(d1)  # Cumulative distribution function for d1
+    cdf_d2 = norm.cdf(d2)  # Cumulative distribution function for d2
 
+    # Calculate option Greeks for Call and Put options
     if optionType == "Call":
         delta = cdf_d1
         theta = (-S * pdf_d1 * sigma / (2 * math.sqrt(T)) -
@@ -254,33 +336,37 @@ def calculateGreeks(S, K, T, r, sigma, optionType):
                  r * K * math.exp(-r * T) * (1 - cdf_d2))
         rho = -K * T * math.exp(-r * T) * (1 - cdf_d2)
     else:
-        raise ValueError("Invalid option type. Use 'call' or 'put'.")
+        raise ValueError("Invalid option type. Use 'Call' or 'Put'.")
 
-    gamma = pdf_d1 / (S * sigma * math.sqrt(T))
-    vega = S * pdf_d1 * math.sqrt(T)
+    gamma = pdf_d1 / (S * sigma * math.sqrt(T))  # Gamma calculation
+    vega = S * pdf_d1 * math.sqrt(T)  # Vega calculation
 
+    # Return the Greeks in a dictionary
     return {
         "Delta": delta,
         "Gamma": gamma,
-        "Theta": theta / 365,
-        "Vega": vega / 100,  
-        "Rho": rho / 100     
+        "Theta": theta / 365,  # Convert theta to daily change
+        "Vega": vega / 100,  # Convert Vega to percentage
+        "Rho": rho / 100     # Convert Rho to percentage
     }
 
 
-
 def drawStockGraph(app):
-    drawRect(50, 50, 30, 30, align = 'center', borderWidth = 2, fill = None, border = 'black')
-    drawLabel('Candlestick', 100, 50, size = 12)
-    if app.candleStick == True:
+    # Draw a rectangular area for the stock chart and candlestick label
+    drawRect(50, 50, 30, 30, align='center', borderWidth=2, fill=None, border='black')
+    drawLabel('Candlestick', 100, 50, size=12)
+
+    # If candlestick view is enabled, X the box
+    if app.candleStick:
         drawLine(35, 35, 65, 65, fill='red', lineWidth=3)
         drawLine(35, 65, 65, 35, fill='red', lineWidth=3)
-    drawLabel(f"Ticker: {app.Tickertext[7:]}", app.width//2, 50, size=20, bold=True)
-    drawLabel(f"Current Price: ${app.stockPrice}", app.width//2, 80, size=16)
-    drawLabel(f"Duration: {app.dur}", app.width//2, 100, size=16)
 
+    # Display the ticker and stock price information
+    drawLabel(f"Ticker: {app.Tickertext[7:]}", app.width // 2, 50, size=20, bold=True)
+    drawLabel(f"Current Price: ${app.stockPrice}", app.width // 2, 80, size=16)
+    drawLabel(f"Duration: {app.dur}", app.width // 2, 100, size=16)
 
-
+    # Fetch the stock data and prepare graph values
     hist = fetchStockData(app)
     dates = hist.index
     closePrices = hist['Close']
@@ -290,16 +376,18 @@ def drawStockGraph(app):
     graphWidth = 600
     margin = 100
 
-    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    # Calculate scaling factors for the graph
+    dateRange = ((hist.index[-1] - hist.index[0]).days) * 5 / 7
     priceRange = hist['High'].max() - hist['Low'].min()
-    xScale = (graphWidth) / dateRange
-    yScale = (graphHeight) / priceRange
+    xScale = graphWidth / dateRange
+    yScale = graphHeight / priceRange
 
-
+    # Draw the X and Y axis for the graph
     drawLine(100, 150, 100, 550)
     drawLine(100, 550, 700, 550)
 
-    if app.candleStick == False:
+    # Draw either line graph or candlestick chart based on the user preference
+    if not app.candleStick:
         for i in range(len(app.points) - 1):
             drawLine(app.points[i][0], app.points[i][1], app.points[i + 1][0], app.points[i + 1][1], lineWidth=2, fill='blue')
     else:
@@ -311,66 +399,71 @@ def drawStockGraph(app):
             lowY = float(app.height - 250 - (hist['Low'].iloc[i] - hist['Low'].min()) * yScale)
 
             fillColor = 'green' if hist['Close'].iloc[i] > hist['Open'].iloc[i] else 'red'
-            drawRect(x-2, min(openY, closeY), 4, abs(closeY - openY), fill=fillColor)
+            drawRect(x - 2, min(openY, closeY), 4, abs(closeY - openY), fill=fillColor)
 
+            # Draw the high and low lines for the candlestick
             drawLine(x, highY, x, lowY)
 
-
-        
+    # Label the price range on the left side of the graph
     rangeY = maxPrice - minPrice
-    for i in range(1,9):
-        drawLabel(pythonRound(rangeY/8*i + minPrice, 2), 75, 550 - 50*i)
+    for i in range(1, 9):
+        drawLabel(pythonRound(rangeY / 8 * i + minPrice, 2), 75, 550 - 50 * i)
 
+    # Draw the date range boxes at the bottom
+    for i in range(1, 5):
+        drawRect(200 * i - 100, 700, 125, 75, fill='lightGray', align='center')
+        drawLabel(dateList[i - 1], 200 * i - 100, 700, size=18, font='monospace', fill='white')
 
-    for i in range(1,5):
-        drawRect(200*i - 100, 700 , 125, 75, fill = 'lightGray', align = 'center')
-        drawLabel(dateList[i-1], 200*i - 100, 700, size = 18, font = 'monospace', fill  ='white')
+    # Display a message to go back
+    drawLabel('ESC to Go Back', 100, 780, font='monospace', size=16)
 
-    drawLabel('ESC to Go Back', 100, 780 , font ='monosapce', size = 16)
-
-    if app.drawPrice != None and app.candleStick == False:
+    # If a price is being hovered, display it on the graph
+    if app.drawPrice is not None and not app.candleStick:
         price, mouseX, mouseY = app.drawPrice
-        drawLabel(f"Price: ${pythonRound(price,2)}", mouseX + 10, mouseY - 10, size=14, fill='black')
-        drawLine(mouseX, 150, mouseX, 550, dashes = True)
-    
-    if app.drawCandle != None and app.candleStick == True:
-        i, mouseX, mouseY = app.drawCandle
-        drawRect(mouseX + 10, mouseY - 10, 100, 80, fill = 'lavender', border = 'black', borderWidth = 3)
-        drawLabel(f'Open = {pythonRound(hist['Open'].iloc[i],2)}', mouseX+60, mouseY)
-        drawLabel(f'Close = {pythonRound(hist['Close'].iloc[i],2)}', mouseX+60, mouseY+20)
-        drawLabel(f'High = {pythonRound(hist['High'].iloc[i],2)}', mouseX+60, mouseY+40)
-        drawLabel(f'Low = {pythonRound(hist['Low'].iloc[i],2)}', mouseX+60, mouseY+60)
+        drawLabel(f"Price: ${pythonRound(price, 2)}", mouseX + 10, mouseY - 10, size=14, fill='black')
+        drawLine(mouseX, 150, mouseX, 550, dashes=True)
 
+    # If a candlestick is being hovered, display its information
+    if app.drawCandle is not None and app.candleStick:
+        i, mouseX, mouseY = app.drawCandle
+        drawRect(mouseX + 10, mouseY - 10, 100, 80, fill='lavender', border='black', borderWidth=3)
+        drawLabel(f'Open = {pythonRound(hist["Open"].iloc[i], 2)}', mouseX + 60, mouseY)
+        drawLabel(f'Close = {pythonRound(hist["Close"].iloc[i], 2)}', mouseX + 60, mouseY + 20)
+        drawLabel(f'High = {pythonRound(hist["High"].iloc[i], 2)}', mouseX + 60, mouseY + 40)
+        drawLabel(f'Low = {pythonRound(hist["Low"].iloc[i], 2)}', mouseX + 60, mouseY + 60)
+
+    # Draw the app icon
     drawIcon(app, 760, 40)
 
 def generateRectList(app):
+    # Fetch the stock data
     hist = fetchStockData(app)
     graphHeight = 400
     graphWidth = 600
     margin = 100
 
-    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    # Calculate scaling factors for the graph
+    dateRange = ((hist.index[-1] - hist.index[0]).days) * 5 / 7
     priceRange = hist['High'].max() - hist['Low'].min()
-    xScale = (graphWidth) / dateRange
-    yScale = (graphHeight) / priceRange
+    xScale = graphWidth / dateRange
+    yScale = graphHeight / priceRange
 
-
+    # Generate a list of rectangles for the candlestick chart
     app.rectList = []
     for i in range(1, len(hist)):
         x = margin + i * xScale
         openY = float(app.height - 250 - (hist['Open'].iloc[i] - hist['Low'].min()) * yScale)
         closeY = float(app.height - 250 - (hist['Close'].iloc[i] - hist['Low'].min()) * yScale)
-        highY = float(app.height - 250 - (hist['High'].iloc[i] - hist['Low'].min()) * yScale)
-        lowY = float(app.height - 250 - (hist['Low'].iloc[i] - hist['Low'].min()) * yScale)
-        app.rectList.append((x-2, min(openY, closeY), 4, abs(closeY - openY)))
-
+        app.rectList.append((x - 2, min(openY, closeY), 4, abs(closeY - openY)))
 
 def fetchStockData(app):
+    # Fetch historical stock data using Yahoo Finance
     stock = yf.Ticker(app.Tickertext[7:])
     hist = stock.history(period=app.dur)
     return hist
 
 def findAppPoints(app):
+    # Fetch stock data and calculate the position of each data point on the graph
     stock = yf.Ticker(app.Tickertext[7:])
     hist = stock.history(period=app.dur)
     app.closePrices = hist['Close']
@@ -380,11 +473,13 @@ def findAppPoints(app):
     graphWidth = 600
     margin = 100
 
-    dateRange = ((hist.index[-1] - hist.index[0]).days)*5/7
+    # Calculate scaling factors for the graph
+    dateRange = ((hist.index[-1] - hist.index[0]).days) * 5 / 7
     priceRange = hist['High'].max() - hist['Low'].min()
-    xScale = (graphWidth) / dateRange
-    yScale = (graphHeight) / priceRange
+    xScale = graphWidth / dateRange
+    yScale = graphHeight / priceRange
 
+    # Store points for the line graph
     app.points = []
     
     for i, price in enumerate(app.closePrices):
@@ -392,68 +487,104 @@ def findAppPoints(app):
         y = app.height - 250 - (price - minPrice) * (graphHeight / (maxPrice - minPrice))
         app.points.append((x, float(y)))
 
-
+#Draw the Info Icon
 def drawIcon(app, centerX, centerY):
     drawCircle(centerX, centerY, 20, fill = 'lightGray')
     drawRect(centerX, centerY+4, 7, 14, fill = 'cyan', align = 'center')
     drawCircle(centerX, centerY -10, 4, fill = 'cyan')
 
 
-
 def drawInfoScreen(app):
-    drawRect(0, 0, app.width, app.height, fill = 'sandyBrown')
-    drawLabel('Glossary', app.width//2, 30 - app.scroll, font = 'monospace', size = 45, bold = True)
-    drawLabel('*', 85, 98 - app.scroll, size = 18)
-    drawLabel("Option: A financial tool who's value is based off an underlying asset.", 20,100 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Ticker: A abbreviation used by the Stock Market for a company.", 20,150 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Call: A type of Option that bets the stock goes up." , 20,200 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Put: A type of Option that bets the stock goes down." , 20,250 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Strike Price: The price an option needs to reach by the expiration date" , 20,300 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("to make a profit" , 170,325 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel('*', 150, 298 - app.scroll, size = 18)
-    drawLabel("Expiration Date: The last day an Option can be exercised for profit" , 20,375 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Implied Volatility: The amount of up or down change experts say can" , 20,425 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("reasonably happen in a year" , 230,450 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Table:Shows the amount of profit if the stock goes up to a certain price" , 20,500 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("by a certain date" , 100,525 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 12.17.57 PM.png", 20, 575 - app.scroll, align = 'left-top', width = app.width-40, height = 400)
-    drawLabel("Greeks: Metrics that are useful in trading options" , 20,1025 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Delta: How much the option price goes up if the stock goes up one dollar" , 20,1075 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Gamma: How much the delta goes up if the stock goes up one dollar" , 20,1125 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Theta: How much the option price goes up for every passing day" , 20,1175 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Vega: How much the option price goes up for a change in volatility" , 20,1225 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Rho: How much the option price goes up for a change in interest rates" , 20,1275 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawLabel("Candlesticks: A different way to represent prcies used by many traders" , 20,1325 - app.scroll, font = 'monospace', size = 18, bold = True, align = 'left')
-    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 1.32.46 PM.png", 20, 1375 - app.scroll, align = 'left-top', width = app.width-40, height = 450)
-    drawLabel("* Watch Stock Options Explained by The Plain Bagel on Youtube for more Info" , 20,1875 - app.scroll, font = 'monospace', size = 15, bold = True, align = 'left')
+    # Draw the background of the information screen
+    drawRect(0, 0, app.width, app.height, fill='sandyBrown')
+
+    # Title of the glossary screen
+    drawLabel('Glossary', app.width//2, 30 - app.scroll, font='monospace', size=45, bold=True)
+
+    # Drawing glossary terms and their definitions
+    drawLabel('*', 85, 98 - app.scroll, size=18)
+    drawLabel("Option: A financial tool who's value is based off an underlying asset.", 
+            20,100 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Ticker: A abbreviation used by the Stock Market for a company.", 
+            20,150 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Call: A type of Option that bets the stock goes up.", 
+            20,200 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Put: A type of Option that bets the stock goes down.", 
+             20,250 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Strike Price: The price an option needs to reach by the expiration date", 
+             20,300 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("to make a profit", 170,325 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel('*', 150, 298 - app.scroll, size=18)
+    drawLabel("Expiration Date: The last day an Option can be exercised for profit", 
+                20,375 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Implied Volatility: The amount of up or down change experts say can", 
+                20,425 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("reasonably happen in a year", 230,450 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Table: Shows the amount of profit if the stock goes up to a certain price", 
+            20,500 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("by a certain date", 100,525 - app.scroll, font='monospace', size=18, bold=True, align='left')
+
+    # Drawing images to visualize tables and charts
+    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 12.17.57 PM.png", 
+                20, 575 - app.scroll, align='left-top', width=app.width-40, height=400)
+
+    # Explaining the 'Greeks' metrics and candlestick chart
+    drawLabel("Greeks: Metrics that are useful in trading options", 
+            20,1025 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Delta: How much the option price goes up if the stock goes up one dollar", 
+                20,1075 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Gamma: How much the delta goes up if the stock goes up one dollar", 
+            20,1125 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Theta: How much the option price goes up for every passing day", 
+                20,1175 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Vega: How much the option price goes up for a change in volatility", 
+                20,1225 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawLabel("Rho: How much the option price goes up for a change in interest rates", 
+                20,1275 - app.scroll, font='monospace', size=18, bold=True, align='left')
+
+    # Explanation of candlesticks chart
+    drawLabel("Candlesticks: A different way to represent prices used by many traders", 
+                20,1325 - app.scroll, font='monospace', size=18, bold=True, align='left')
+    drawImage("/Users/vishalnadella/Desktop/Screenshot 2024-12-05 at 1.32.46 PM.png",
+                20, 1375 - app.scroll, align='left-top', width=app.width-40, height=450)
+
+    # Additional info and YouTube recommendation
+    drawLabel("* Watch Stock Options Explained by The Plain Bagel on Youtube for more Info", 
+                20,1875 - app.scroll, font='monospace', size=15, bold=True, align='left')
     if app.underline == True:
         drawLine(20, 1885 - app.scroll, 690, 1885 - app.scroll)
-    drawLabel('Press ESC to Go Back', 700, 20-app.scroll, size = 12, font = 'monospace')
-    drawLabel('Up and Down to Scroll', 100, 20-app.scroll, size = 12, font = 'monospace')
 
-
-
+    # Instructions to navigate the info screen
+    drawLabel('Press ESC to Go Back', 700, 20-app.scroll, size=12, font='monospace')
+    drawLabel('Up and Down to Scroll', 100, 20-app.scroll, size=12, font='monospace')
 
 
 
 def onKeyPress(app, key):
     if app.state == 0:
+        #Enter to Go From Home Screen to SetUp Screen
+
         if key == 'enter':
             getStockPrice(app)
             if app.noTicker == False:
                 findAppPoints(app)
                 app.state= 1
-            
+        #Allows you to type in letters and backspace
         elif key == 'backspace' and len(app.Tickertext)>7:
             app.Tickertext = app.Tickertext[:-1]
         elif key.isalpha() and len(key) == 1:
             app.Tickertext += key.upper()
     if app.state == 1:
+        #Enter to Go From Set Up Screen to Profit Screen
+
         if key == 'enter' and app.optionType != None and app.selectedDate != None:
             app.state = 3
+
+        #Esc to Go Back
         if key == 'escape':
             app.state = 0
     if app.state == 2:
+        #Left and Right to go through months
         if key == 'left':
             app.firstDay = (app.firstDay - daysInMonth[app.currentMonth-1])%7
             app.currentMonth -= 1
@@ -469,28 +600,36 @@ def onKeyPress(app, key):
             if app.currentMonth > 11:
                 app.currentMonth = 0
                 app.currentYear += 1
+        #enter to select date
         elif key == 'enter':
             if checkFutureDate(app):
                 app.state =1 
     if app.state == 3:
+        #Escape to go Bakc
         if key == 'escape':
             app.state = 1
+        #Toggle Greeks
         if key == 'g':
             app.showGreeks = not app.showGreeks
+        #Shows Stock History
         if key == 'i':
             app.state = 4
     if app.state == 4:
+        #Escape to Go back
         if key == 'escape':
             app.state = 3
     if app.state == 5 and key == 'escape':
+        #Escape to Go back
         app.state = 0
 
 
 def onKeyHold(app, keys):
     if app.state == 0:
         if 'backspace' in keys and len(app.Tickertext)>7:
+            #Backspace on Key Hold
             app.Tickertext = app.Tickertext[:-1]
     if app.state ==5:
+        #Scrolling Feature on Info Screen
         if 'down' in keys:
             if app.scroll < 1200:
                 app.scroll += 10
@@ -500,6 +639,7 @@ def onKeyHold(app, keys):
         
 
 def onMouseMove(app, mouseX, mouseY):
+    #Hovers and makes bigger so User can see it is clickable
     if app.state == 1:
         if inTriangle(mouseX, mouseY,  app.strikePos,210,25):
             app.radius = 35
@@ -525,6 +665,7 @@ def onMouseMove(app, mouseX, mouseY):
         else:
             app.sizeUp4 = 0
     if app.state == 4:
+        #Shows price at a certain point on the line graph
         if app.candleStick == False:
             for i, point in enumerate(app.points):
                 px, py = point
@@ -533,6 +674,9 @@ def onMouseMove(app, mouseX, mouseY):
                         price = app.closePrices[i]
                         app.drawPrice = (price, mouseX, mouseY)
                         break
+
+        #Shows prices if mouse in a candlestick
+
         if app.candleStick == True:
             generateRectList(app)
             if mouseY > 550:
@@ -541,6 +685,7 @@ def onMouseMove(app, mouseX, mouseY):
             for i, elem in enumerate(app.rectList):
                 if inRectLeft(mouseX,mouseY, elem[0], elem[1], elem[2], elem[3]):
                     app.drawCandle = (i+1, mouseX, mouseY)
+    #Underlines link towards youtube video when hovered over
     if app.state == 5:
         if abs(mouseY - (1875 - app.scroll)) < 20:
             app.underline = True
@@ -548,7 +693,7 @@ def onMouseMove(app, mouseX, mouseY):
             app.underline = False
      
 
-
+#Inside Rectangle and Triangle Helper Functions
 def inRectLeft(x1, y1, topLeftx1, topLeft1, width, height):
     if (x1 - topLeftx1) < width and (y1 - topLeft1) < height and (topLeftx1<x1) and (topLeft1<y1):
             return True
@@ -565,47 +710,69 @@ def inTriangle(x1,y1, centerX, centerY, radius):
     return ((centerX-x1)**2 + (centerY - y1)**2)**0.5 <  30
 
 
+
+# Mouse Drag for the Strike Price Slider
 def onMouseDrag(app, mouseX, mouseY):
     if app.state == 1:
         if app.radius == 35 and mouseX>40 and mouseX<760:
             app.strikePos = mouseX
             app.strikePrice = rounded(app.stockPrice//2+app.stockPrice*(mouseX-30)/740)
+
+
 def onMousePress(app, mouseX, mouseY):
-    if app.state == 1:
+    # Handles mouse press events based on the current application state
+    if app.state == 1:  # State when options are being selected
         if inRect(mouseX, mouseY, 200, 110, 160, 80):
+            # Select 'Call' option when the user clicks on the Call button
             app.optionType = 'Call'
         if inRect(mouseX, mouseY, 600, 110, 160, 80):    
+            # Select 'Put' option when the user clicks on the Put button
             app.optionType = 'Put'
         if inRect(mouseX, mouseY, app.width//2, app.height//2+50, 300, 100):
+            # Move to state 2 when the user clicks on the 'Go to Calendar' button
             app.state = 2
-        if inTriangle(mouseX, mouseY,  670,530,25):
-            app.vol +=0.01
-        if inTriangle(mouseX, mouseY,  670,570,25):
+        if inTriangle(mouseX, mouseY, 670, 530, 25):
+            # Increase volatility when clicking on a triangle button
+            app.vol += 0.01
+        if inTriangle(mouseX, mouseY, 670, 570, 25):
+            # Decrease volatility when clicking on a different triangle button (if > 0)
             if app.vol > 0:
-                app.vol -=0.01
-    if app.state == 4:
-        for i in range(1,5):
+                app.vol -= 0.01
+
+    if app.state == 4:  # State when the user is in the information screen
+        for i in range(1, 5):
             if inRect(mouseX, mouseY, 200*i - 100, 700, 125, 75):
+                # Change duration when a specific duration button is clicked
                 app.dur = dateList[i-1]
-                findAppPoints(app)
-        if inRect(mouseX, mouseY, 50,50, 30, 30):
+                findAppPoints(app)  # Update application points based on the selected duration
+        if inRect(mouseX, mouseY, 50, 50, 30, 30):
+            # Toggle candlestick view on/off when clicking the candlestick button
             app.candleStick = not app.candleStick
-    if app.state == 2:
-        x,y = closest(mouseX, mouseY)
+
+    if app.state == 2:  # State when the user is interacting with the calendar
+        x, y = closest(mouseX, mouseY)
+        # Calculate the column and row based on the mouse position
         col = (x - 100) // 100
         row = (y - 150) // 100
         day = row * 7 + col - app.firstDay + 1
         daysInThisMonth = daysInMonth[app.currentMonth]
+        # Account for leap year if February is selected
         if app.currentMonth == 1 and isLeapYear(app.currentYear):
             daysInThisMonth = 29
         if 1 <= day <= daysInThisMonth:
+            # Set selected date if the day is within the valid range
             app.selectedDate = (app.currentYear, app.currentMonth, day)
-    if app.state != 2:
-        if mouseX>740 and mouseX< 780 and mouseY<60 and mouseY > 20:
-            app.state =5 
-    if app.state == 5:
+
+    if app.state != 2:  # When the user is not in the calendar state
+        if mouseX > 740 and mouseX < 780 and mouseY < 60 and mouseY > 20:
+            # Go to state 5 (help/info screen) when clicking the help button
+            app.state = 5 
+
+    if app.state == 5:  # State for the info/help screen
         if abs(mouseY - (1875 - app.scroll)) < 20:
+            # Open the YouTube video when the user clicks a specific area on the screen
             webbrowser.open('https://www.youtube.com/watch?v=VJgHkAqohbU')
+
 
 
 runApp()
